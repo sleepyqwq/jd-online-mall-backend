@@ -1,0 +1,18 @@
+spring:
+  application:
+    name: jd-online-mall
+
+  datasource:
+    url: jdbc:mysql://localhost:3306/jd_online_mall?useUnicode=true&characterEncoding=utf8mb4&useSSL=false&serverTimezone=Asia/Shanghai
+    username: mall_user
+    password: 123456
+    driver-class-name: com.mysql.cj.jdbc.Driver
+
+  data:
+    redis:
+      host: localhost
+      port: 6379
+      database: 0
+
+server:
+  port: 8080
