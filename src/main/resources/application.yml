@@ -1,6 +1,12 @@
+server:
+  port: 8080
+
 spring:
   application:
     name: jd-online-mall
+
+  profiles:
+    active: dev
 
   datasource:
     url: jdbc:mysql://localhost:3306/jd_online_mall?useUnicode=true&useSSL=false&serverTimezone=Asia/Shanghai
@@ -13,11 +19,59 @@ spring:
       host: localhost
       port: 6379
       database: 0
+      timeout: 2000ms
+  servlet:
+    multipart:
+      enabled: true
+      max-file-size: 5MB
+      max-request-size: 10MB
 
-server:
-  port: 8080
+  jackson:
+    date-format: yyyy-MM-dd HH:mm:ss
+    time-zone: Asia/Shanghai
 
-app:
+mybatis-plus:
+  mapper-locations: classpath*:mapper/*.xml
+  type-aliases-package: com.tq
+  configuration:
+    map-underscore-to-camel-case: true
+    log-impl: org.apache.ibatis.logging.stdout.StdOutImpl
+
+logging:
+  level:
+    root: info
+    com.tq: debug
+
+jd:
+  auth:
+    token:
+      header: Authorization
+      prefix: "Bearer "
   jwt:
-    secret: "jd-online-mall-secret-change-me-please-32-chars"
-    expire-minutes: 120
+    secret: "please-change-to-a-strong-secret-at-least-32-chars"
+    expire-seconds: 7200
+
+  upload:
+    local-dir: "${user.dir}/data/upload"
+    public-prefix: "/images"
+    return-full-url: true
+
+  order:
+    timeout-seconds: 900
+    test-timeout-seconds: 20
+    use-test-timeout: false
+
+  cors:
+    enabled: false
+    allowed-origins:
+      - "http://localhost:5173"
+    allowed-methods:
+      - GET
+      - POST
+      - PUT
+      - DELETE
+      - OPTIONS
+    allowed-headers:
+      - Authorization
+      - Content-Type
+    allow-credentials: true
