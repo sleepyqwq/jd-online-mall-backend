@@ -1,16 +1,14 @@
 package com.tq.module.auth.controller;
 
 import com.tq.common.api.Result;
+import com.tq.common.util.UrlUtil;
 import com.tq.module.auth.dto.LoginRequest;
 import com.tq.module.auth.dto.LoginResponse;
 import com.tq.module.auth.service.AuthService;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.*;
 
-/**
- * 管理后台认证接口
- * 对应 /api/admin/auth/...
- */
 @RestController
 @RequestMapping("/api/admin/auth")
 public class AdminAuthController {
@@ -21,27 +19,29 @@ public class AdminAuthController {
         this.authService = authService;
     }
 
-    /**
-     * 管理员登录
-     */
     @PostMapping("/login")
-    public Result<LoginResponse> login(@RequestBody @Valid LoginRequest request) {
+    public Result<LoginResponse> login(@RequestBody @Valid LoginRequest request, HttpServletRequest httpReq) {
         LoginResponse resp = authService.adminLogin(request);
+
+        // 补全头像 fullUrl（避免前端不显示）
+        String baseUrl = UrlUtil.buildBaseUrl(httpReq);
+        if (resp != null && resp.getUser() != null) {
+            resp.getUser().setAvatar(UrlUtil.toFullUrl(baseUrl, resp.getUser().getAvatar()));
+        }
         return Result.ok(resp);
     }
 
-    /**
-     * 获取当前管理员信息
-     */
     @GetMapping("/me")
-    public Result<LoginResponse.UserInfo> me() {
+    public Result<LoginResponse.UserInfo> me(HttpServletRequest httpReq) {
         LoginResponse.UserInfo info = authService.currentAdmin();
+
+        String baseUrl = UrlUtil.buildBaseUrl(httpReq);
+        if (info != null) {
+            info.setAvatar(UrlUtil.toFullUrl(baseUrl, info.getAvatar()));
+        }
         return Result.ok(info);
     }
 
-    /**
-     * 管理员退出登录
-     */
     @PostMapping("/logout")
     public Result<Void> logout() {
         authService.adminLogout();

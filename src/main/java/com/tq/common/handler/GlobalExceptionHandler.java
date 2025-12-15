@@ -18,9 +18,10 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 public class GlobalExceptionHandler {
 
     @ExceptionHandler(BusinessException.class)
-    public Result<Void> handleBusiness(BusinessException ex) {
-        return Result.fail(ex.getCode(), ex.getMessage());
+    public Result<Object> handleBusiness(BusinessException ex) {
+        return Result.fail(ex.getCode(), ex.getMessage(), ex.getData());
     }
+
 
     /**
      * @Valid 请求体校验失败
@@ -29,7 +30,7 @@ public class GlobalExceptionHandler {
     public Result<Void> handleMethodArgumentNotValid(MethodArgumentNotValidException ex) {
         String msg = ex.getBindingResult().getAllErrors().isEmpty()
                 ? ErrorCode.PARAM_INVALID.getMessage()
-                : ex.getBindingResult().getAllErrors().get(0).getDefaultMessage();
+                : ex.getBindingResult().getAllErrors().getFirst().getDefaultMessage();
         return Result.fail(ErrorCode.PARAM_INVALID.getCode(), msg);
     }
 
@@ -40,7 +41,7 @@ public class GlobalExceptionHandler {
     public Result<Void> handleBind(BindException ex) {
         String msg = ex.getAllErrors().isEmpty()
                 ? ErrorCode.PARAM_INVALID.getMessage()
-                : ex.getAllErrors().get(0).getDefaultMessage();
+                : ex.getAllErrors().getFirst().getDefaultMessage();
         return Result.fail(ErrorCode.PARAM_INVALID.getCode(), msg);
     }
 

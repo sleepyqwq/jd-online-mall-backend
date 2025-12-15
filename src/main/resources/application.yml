@@ -40,7 +40,7 @@ mybatis-plus:
 logging:
   level:
     root: info
-    com.tq: debug
+    com.tq: info
 
 jd:
   auth:

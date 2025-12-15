@@ -32,4 +32,9 @@ public class Result<T> {
     public static <T> Result<T> fail(int code, String message) {
         return new Result<>(code, message, null);
     }
+
+    public static <T> Result<T> fail(int code, String message, T data) {
+        return new Result<>(code, message, data);
+    }
+
 }
