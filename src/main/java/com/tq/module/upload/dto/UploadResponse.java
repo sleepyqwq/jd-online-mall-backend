@@ -15,7 +15,7 @@ public class UploadResponse {
     private String url;
 
     /**
-     * 图片完整访问地址，例如 http://localhost:8080/images/2025/12/01/abc.jpg
+     * 图片完整访问地址
      */
     private String fullUrl;
 

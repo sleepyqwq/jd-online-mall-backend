@@ -36,7 +36,7 @@ public class UploadController {
     }
 
     /**
-     * 计算当前请求的基础 URL，例如 http://localhost:8080
+     * 计算当前请求的基础 URL，
      */
     private String buildBaseUrl(HttpServletRequest request) {
         String scheme = request.getScheme();

@@ -19,6 +19,8 @@ public class AdminProductListItemVO {
     private String subTitle;
 
     private String mainImage;
+    private String imageList; // 新增字段，用于前端编辑回显
+    private String description;//详情描述
 
     private BigDecimal price;
 

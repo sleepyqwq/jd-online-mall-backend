@@ -374,6 +374,8 @@ public class ProductServiceImpl implements ProductService {
         vo.setCategoryId(String.valueOf(product.getCategoryId()));
         vo.setStatus(product.getStatus());
         vo.setCreateTime(product.getCreateTime());
+        vo.setImageList(product.getImageList()); // 赋值
+        vo.setDescription(product.getDescription());//赋值详情描述
         return vo;
     }
 

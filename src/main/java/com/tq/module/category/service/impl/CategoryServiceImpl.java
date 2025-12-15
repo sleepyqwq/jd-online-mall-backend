@@ -1,6 +1,7 @@
 package com.tq.module.category.service.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.tq.common.api.ErrorCode;
 import com.tq.common.exception.BusinessException;
 import com.tq.common.exception.NotFoundException;
@@ -135,20 +136,26 @@ public class CategoryServiceImpl implements CategoryService {
     @Override
     @Transactional
     public void deleteCategory(Long id) {
+        // 1. 先查询是否存在（保持原有的校验逻辑）
         Category category = categoryMapper.selectById(id);
         if (category == null || (category.getDeleted() != null && category.getDeleted() == 1)) {
             throw new NotFoundException("分类不存在");
         }
 
-        // 有子分类时禁止删除
+        // 2. 校验子分类（保持原有逻辑）
         if (hasChildren(id)) {
             throw new BusinessException(ErrorCode.PARAM_INVALID, "存在子分类，禁止删除");
         }
 
-        // 关于“已关联商品时禁止删除”的校验，可在商品模块完成后通过 Product 表进行补充。
-        // 这里先实现子分类约束，保证当前阶段分类树结构的安全性。
+        // 3. 【修复核心】使用 UpdateWrapper 强制更新 deleted 字段
+        // 既然 deleteById 报错，updateById 不生效，我们就手动构造 Update 语句
+        LambdaUpdateWrapper<Category> updateWrapper = new LambdaUpdateWrapper<>();
+        updateWrapper.eq(Category::getId, id)
+                .set(Category::getDeleted, 1) // 显式设置逻辑删除
+                .set(Category::getUpdateTime, LocalDateTime.now()); // 显式设置更新时间
 
-        categoryMapper.deleteById(id); // 逻辑删除
+        // 第一个参数传 null，表示不使用实体自动映射，全靠 wrapper 控制 SET 子句
+        categoryMapper.update(null, updateWrapper);
     }
 
     /**

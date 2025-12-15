@@ -12,7 +12,7 @@ public interface UploadService {
      * 上传图片文件
      *
      * @param file    上传的文件
-     * @param baseUrl 当前请求的基础 URL，例如 http://localhost:8080
+     * @param baseUrl 当前请求的基础 URL
      * @return 上传结果
      */
     UploadResponse uploadImage(MultipartFile file, String baseUrl);

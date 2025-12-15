@@ -10,7 +10,6 @@ import java.util.List;
 
 /**
  * CORS 跨域配置
- *
  * 说明：
  * 1 默认关闭（jd.cors.enabled=false）
  * 2 当需要本地直连调试时，只需在 application.yml 中将 jd.cors.enabled 调为 true，
