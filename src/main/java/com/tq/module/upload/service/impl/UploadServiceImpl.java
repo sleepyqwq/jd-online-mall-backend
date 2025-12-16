@@ -2,6 +2,7 @@ package com.tq.module.upload.service.impl;
 
 import com.tq.common.api.ErrorCode;
 import com.tq.common.exception.BusinessException;
+import com.tq.common.util.UploadPathUtil;
 import com.tq.config.properties.UploadProperties;
 import com.tq.module.upload.dto.UploadResponse;
 import com.tq.module.upload.service.UploadService;
@@ -9,7 +10,6 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 import org.springframework.web.multipart.MultipartFile;
-
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -72,7 +72,7 @@ public class UploadServiceImpl implements UploadService {
         }
 
         // 计算相对访问路径，例如 /images/2025/12/01/xxx.jpg
-        String publicPrefix = normalizePublicPrefix(uploadProperties.getPublicPrefix());
+        String publicPrefix = UploadPathUtil.normalizePublicPrefix(uploadProperties.getPublicPrefix());
         String url = publicPrefix + "/" + year + "/" + month + "/" + day + "/" + newName;
 
         // 计算完整访问地址
@@ -92,20 +92,4 @@ public class UploadServiceImpl implements UploadService {
         return resp;
     }
 
-    /**
-     * 统一处理 publicPrefix，保证最终格式为 /images 这样的形式
-     */
-    private String normalizePublicPrefix(String publicPrefix) {
-        if (!StringUtils.hasText(publicPrefix)) {
-            return "/images";
-        }
-        String p = publicPrefix.trim();
-        if (!p.startsWith("/")) {
-            p = "/" + p;
-        }
-        if (p.endsWith("/")) {
-            p = p.substring(0, p.length() - 1);
-        }
-        return p;
-    }
 }

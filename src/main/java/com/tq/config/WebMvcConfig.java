@@ -1,11 +1,11 @@
 package com.tq.config;
 
+import com.tq.common.util.UploadPathUtil;
 import com.tq.config.properties.UploadProperties;
 import com.tq.security.interceptor.AdminInterceptor;
 import com.tq.security.interceptor.AuthInterceptor;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.util.StringUtils;
 import org.springframework.web.servlet.config.annotation.InterceptorRegistry;
 import org.springframework.web.servlet.config.annotation.ResourceHandlerRegistry;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
@@ -61,7 +61,7 @@ public class WebMvcConfig implements WebMvcConfigurer {
     @Override
     public void addResourceHandlers(ResourceHandlerRegistry registry) {
         // 1. 准备 URL 前缀，比如 "/images"
-        String prefix = normalizePublicPrefix(uploadProperties.getPublicPrefix());
+        String prefix = UploadPathUtil.normalizePublicPrefix(uploadProperties.getPublicPrefix());
 
         // 2. 准备本地物理路径，比如 "D:/data/upload"
         String localDir = uploadProperties.getLocalDir();
@@ -73,22 +73,5 @@ public class WebMvcConfig implements WebMvcConfigurer {
         // 4. 建立映射关系
         registry.addResourceHandler(prefix + "/**")
                 .addResourceLocations(location);
-    }
-
-    private String normalizePublicPrefix(String publicPrefix) {
-        //防御性编程：无论你在配置文件里把 jd.upload.public-prefix 写成 images、/images 还是 /images/，这个方法都能把它统一处理成标准的 /images 格式
-        if (!StringUtils.hasText(publicPrefix)) {
-            return "/images";
-        }
-        String p = publicPrefix.trim();
-        //防止路径开头缺少/
-        if (!p.startsWith("/")) {
-            p = "/" + p;
-        }
-        //防止路径末尾多了个/
-        if (p.endsWith("/")) {
-            p = p.substring(0, p.length() - 1);
-        }
-        return p;
     }
 }

@@ -20,12 +20,7 @@ public class UserContext {
 
     public static Long getUserId() {
         UserPrincipal p = HOLDER.get();
-        return p == null ? null : p.getUserId();
-    }
-
-    public static RoleEnum getRole() {
-        UserPrincipal p = HOLDER.get();
-        return p == null ? null : p.getRole();
+        return p == null ? null : p.userId();
     }
 
     public static void clear() {
@@ -33,24 +28,10 @@ public class UserContext {
     }
 
     /**
-     * 最小用户身份对象
-     * 后续如需用户名、头像等，可再扩展字段
-     */
-    public static class UserPrincipal {
-        private final Long userId;
-        private final RoleEnum role;
+         * 最小用户身份对象
+         * 后续如需用户名、头像等，可再扩展字段
+         */
+        public record UserPrincipal(Long userId, RoleEnum role) {
 
-        public UserPrincipal(Long userId, RoleEnum role) {
-            this.userId = userId;
-            this.role = role;
-        }
-
-        public Long getUserId() {
-            return userId;
-        }
-
-        public RoleEnum getRole() {
-            return role;
-        }
     }
 }

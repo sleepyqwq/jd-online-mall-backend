@@ -21,7 +21,7 @@ public class AdminAuthController {
 
     @PostMapping("/login")
     public Result<LoginResponse> login(@RequestBody @Valid LoginRequest request, HttpServletRequest httpReq) {
-        LoginResponse resp = authService.adminLogin(request);
+            LoginResponse resp = authService.adminLogin(request);
 
         // 补全头像 fullUrl（避免前端不显示）
         String baseUrl = UrlUtil.buildBaseUrl(httpReq);

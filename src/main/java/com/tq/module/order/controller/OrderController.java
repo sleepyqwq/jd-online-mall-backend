@@ -6,7 +6,6 @@ import com.tq.common.util.UrlUtil;
 import com.tq.module.order.dto.OrderCreateRequest;
 import com.tq.module.order.dto.OrderDetailVO;
 import com.tq.module.order.dto.OrderListItemVO;
-import com.tq.module.order.dto.OrderPayRequest;
 import com.tq.module.order.service.OrderService;
 import com.tq.security.context.UserContext;
 import jakarta.servlet.http.HttpServletRequest;
@@ -46,16 +45,19 @@ public class OrderController {
     }
 
     @PutMapping("/{orderId}/cancel")
-    public Result<Void> cancel(@PathVariable Long orderId) {
+    public Result<Void> cancel(@PathVariable Long orderId, @RequestBody(required = false) java.util.Map<String, String> body) {
         Long userId = UserContext.getUserId();
-        orderService.cancel(userId, orderId);
+        // 前端传参格式为 { reason: "..." }
+        String reason = (body != null && body.containsKey("reason")) ? body.get("reason") : "用户主动取消";
+        orderService.cancel(userId, orderId, reason);
         return Result.ok();
     }
 
     @PostMapping("/{orderId}/pay")
-    public Result<Void> pay(@PathVariable Long orderId, @RequestBody(required = false) OrderPayRequest body) {
+    public Result<Void> pay(@PathVariable Long orderId) {
         Long userId = UserContext.getUserId();
         orderService.pay(userId, orderId);
         return Result.ok();
     }
+
 }

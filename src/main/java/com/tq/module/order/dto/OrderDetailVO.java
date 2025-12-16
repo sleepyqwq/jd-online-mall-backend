@@ -15,6 +15,9 @@ public class OrderDetailVO {
     private String status;
     private BigDecimal totalAmount;
 
+    // 订单备注
+    private String remark;
+
     private LocalDateTime createTime;
     private LocalDateTime payTime;
     private LocalDateTime cancelTime;

@@ -12,12 +12,17 @@ import com.tq.module.address.entity.Address;
 import com.tq.module.address.service.AddressService;
 import com.tq.module.cart.entity.CartItem;
 import com.tq.module.cart.mapper.CartItemMapper;
-import com.tq.module.order.dto.*;
+import com.tq.module.order.dto.AdminOrderListItemVO;
+import com.tq.module.order.dto.OrderCreateRequest;
+import com.tq.module.order.dto.OrderDetailVO;
+import com.tq.module.order.dto.OrderListItemVO;
+import com.tq.module.order.dto.OrderStatusUpdateRequest;
 import com.tq.module.order.entity.AddressSnapshot;
 import com.tq.module.order.entity.Order;
 import com.tq.module.order.entity.OrderItem;
 import com.tq.module.order.mapper.OrderItemMapper;
 import com.tq.module.order.mapper.OrderMapper;
+import com.tq.module.order.service.OrderService;
 import com.tq.module.product.entity.Product;
 import com.tq.module.product.mapper.ProductMapper;
 import lombok.RequiredArgsConstructor;
@@ -27,13 +32,18 @@ import org.springframework.transaction.annotation.Transactional;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.UUID;
+import java.util.*;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
-public class OrderServiceImpl implements com.tq.module.order.service.OrderService {
+public class OrderServiceImpl implements OrderService {
+
+    private static final String STATUS_WAIT_PAY = "WAIT_PAY";
+    private static final String STATUS_PAID = "PAID";
+    private static final String STATUS_SHIPPED = "SHIPPED";
+    private static final String STATUS_COMPLETED = "COMPLETED";
+    private static final String STATUS_CANCELED = "CANCELED";
 
     private final OrderMapper orderMapper;
     private final OrderItemMapper orderItemMapper;
@@ -49,28 +59,35 @@ public class OrderServiceImpl implements com.tq.module.order.service.OrderServic
     public String create(Long userId, OrderCreateRequest req) {
         Address address = addressService.getByIdForOrder(userId, Long.valueOf(req.getAddressId()));
 
+        String sourceType = req.getSourceType();
         List<OrderItem> items = new ArrayList<>();
         BigDecimal total = BigDecimal.ZERO;
 
-        if ("BUY_NOW".equals(req.getSourceType())) {
+        List<Long> cartIdsToDelete = Collections.emptyList();
+
+        if ("BUY_NOW".equals(sourceType)) {
             Long productId = Long.valueOf(req.getProductId());
             int qty = req.getQuantity();
 
             Product p = getOnShelfProductOrThrow(productId);
             deductStockOrThrow(p.getId(), qty);
 
-            OrderItem oi = buildOrderItem(null, p, qty);
+            OrderItem oi = buildOrderItem(p, qty);
             items.add(oi);
             total = total.add(oi.getSubtotalAmount());
 
-        } else if ("CART".equals(req.getSourceType())) {
-            List<Long> cartIds = req.getCartItemIds().stream().map(Long::valueOf).toList();
+        } else if ("CART".equals(sourceType)) {
+            List<String> rawCartIds = req.getCartItemIds();
+            if (rawCartIds == null || rawCartIds.isEmpty()) {
+                throw new BusinessException(ErrorCode.PARAM_INVALID, "cartItemIds无效");
+            }
 
+            List<Long> cartIds = rawCartIds.stream().map(Long::valueOf).toList();
             List<CartItem> cartItems = cartItemMapper.selectList(new LambdaQueryWrapper<CartItem>()
                     .eq(CartItem::getUserId, userId)
                     .in(CartItem::getId, cartIds));
 
-            if (cartItems.isEmpty()) {
+            if (cartItems.isEmpty() || cartItems.size() != cartIds.size()) {
                 throw new BusinessException(ErrorCode.PARAM_INVALID, "cartItemIds无效");
             }
 
@@ -78,26 +95,25 @@ public class OrderServiceImpl implements com.tq.module.order.service.OrderServic
             for (CartItem ci : cartItems) {
                 Product p = getOnShelfProductOrThrow(ci.getProductId());
                 deductStockOrThrow(p.getId(), ci.getQuantity());
-                OrderItem oi = buildOrderItem(null, p, ci.getQuantity());
+
+                OrderItem oi = buildOrderItem(p, ci.getQuantity());
                 items.add(oi);
                 total = total.add(oi.getSubtotalAmount());
             }
 
-            // 下单成功后自动删除购物车记录（逻辑删除即可）
-            for (CartItem ci : cartItems) {
-                cartItemMapper.deleteById(ci.getId());
-            }
+            cartIdsToDelete = cartIds;
+
         } else {
             throw new BusinessException(ErrorCode.PARAM_INVALID, "sourceType不合法");
         }
 
         LocalDateTime now = LocalDateTime.now();
-        long timeoutSeconds = orderTimeoutProperties.effectiveTimeoutSeconds(); // 900 或 20（测试）
+        long timeoutSeconds = orderTimeoutProperties.effectiveTimeoutSeconds();
         LocalDateTime expireTime = now.plusSeconds(timeoutSeconds);
 
         Order order = new Order();
         order.setUserId(userId);
-        order.setStatus("WAIT_PAY");
+        order.setStatus(STATUS_WAIT_PAY);
         order.setTotalAmount(total);
         order.setRemark(req.getRemark());
 
@@ -114,12 +130,10 @@ public class OrderServiceImpl implements com.tq.module.order.service.OrderServic
         order.setCreateTime(now);
         order.setUpdateTime(now);
 
-        // 为了满足数据库 order_no 非空约束，先设置一个临时 UUID
-        // 插入成功获取 ID 后，再更新为正式的业务规则订单号
+        // 为了满足数据库 order_no 非空约束，先设置一个临时 UUID，插入拿到 ID 后再生成正式订单号
         order.setOrderNo(UUID.randomUUID().toString().replace("-", ""));
         orderMapper.insert(order);
 
-        // 生成 orderNo：yyyyMMdd + 订单ID后8位（可按需调整为更严格的规则）
         String day = now.format(DateTimeFormatter.ofPattern("yyyyMMdd"));
         String tail = String.format("%08d", order.getId() % 100_000_000L);
         order.setOrderNo(day + tail);
@@ -134,17 +148,39 @@ public class OrderServiceImpl implements com.tq.module.order.service.OrderServic
             orderItemMapper.insert(oi);
         }
 
+        // 下单成功后自动删除购物车记录（逻辑删除）
+        if (!cartIdsToDelete.isEmpty()) {
+            cartItemMapper.delete(new LambdaQueryWrapper<CartItem>()
+                    .eq(CartItem::getUserId, userId)
+                    .in(CartItem::getId, cartIdsToDelete));
+        }
+
+
         return String.valueOf(order.getId());
     }
 
     @Override
     public PageResult<OrderListItemVO> page(Long userId, String status, int pageNum, int pageSize) {
+        // 1. 查询订单主表分页
         Page<Order> page = orderMapper.selectPage(new Page<>(pageNum, pageSize),
                 new LambdaQueryWrapper<Order>()
                         .eq(Order::getUserId, userId)
                         .eq(status != null && !status.isBlank(), Order::getStatus, status)
                         .orderByDesc(Order::getCreateTime));
 
+        // 2. 批量查询当前页所有订单的明细 (避免 N+1)
+        List<Long> orderIds = page.getRecords().stream().map(Order::getId).toList();
+        Map<Long, List<OrderItem>> itemMap = new HashMap<>();
+
+        if (!orderIds.isEmpty()) {
+            List<OrderItem> allItems = orderItemMapper.selectList(
+                    new LambdaQueryWrapper<OrderItem>().in(OrderItem::getOrderId, orderIds)
+            );
+            itemMap = allItems.stream().collect(Collectors.groupingBy(OrderItem::getOrderId));
+        }
+
+        // 3. 组装 VO
+        Map<Long, List<OrderItem>> finalItemMap = itemMap;
         List<OrderListItemVO> list = page.getRecords().stream().map(o -> {
             OrderListItemVO vo = new OrderListItemVO();
             vo.setOrderId(String.valueOf(o.getId()));
@@ -153,6 +189,20 @@ public class OrderServiceImpl implements com.tq.module.order.service.OrderServic
             vo.setTotalAmount(o.getTotalAmount());
             vo.setCreateTime(o.getCreateTime());
             vo.setPayTime(o.getPayTime());
+
+            List<OrderItem> orderItems = finalItemMap.getOrDefault(o.getId(), new ArrayList<>());
+            List<OrderDetailVO.ItemVO> itemVOs = orderItems.stream().map(item -> {
+                OrderDetailVO.ItemVO itemVO = new OrderDetailVO.ItemVO();
+                itemVO.setProductId(String.valueOf(item.getProductId()));
+                itemVO.setProductTitle(item.getProductTitle());
+                itemVO.setProductImage(item.getProductImage()); // 列表页不补 fullUrl（保持你当前策略）
+                itemVO.setPrice(item.getPrice());
+                itemVO.setQuantity(item.getQuantity());
+                itemVO.setSubtotalAmount(item.getSubtotalAmount());
+                return itemVO;
+            }).toList();
+
+            vo.setItems(itemVOs);
             return vo;
         }).toList();
 
@@ -172,21 +222,22 @@ public class OrderServiceImpl implements com.tq.module.order.service.OrderServic
 
     @Override
     @Transactional
-    public void cancel(Long userId, Long orderId) {
+    public void cancel(Long userId, Long orderId, String reason) {
         Order o = orderMapper.selectOne(new LambdaQueryWrapper<Order>()
                 .eq(Order::getId, orderId)
                 .eq(Order::getUserId, userId));
         if (o == null) {
             throw new NotFoundException("订单不存在");
         }
-        if (!"WAIT_PAY".equals(o.getStatus())) {
+        if (!STATUS_WAIT_PAY.equals(o.getStatus())) {
             throw new BusinessException(ErrorCode.PARAM_INVALID, "订单当前状态不可取消");
         }
 
-        o.setStatus("CANCELED");
-        o.setCancelReason("USER_CANCEL");
-        o.setCancelTime(LocalDateTime.now());
-        o.setUpdateTime(LocalDateTime.now());
+        LocalDateTime now = LocalDateTime.now();
+        o.setStatus(STATUS_CANCELED);
+        o.setCancelReason(reason != null ? reason : "USER_CANCEL");
+        o.setCancelTime(now);
+        o.setUpdateTime(now);
         orderMapper.updateById(o);
 
         rollbackStockByOrderId(o.getId());
@@ -201,17 +252,18 @@ public class OrderServiceImpl implements com.tq.module.order.service.OrderServic
         if (o == null) {
             throw new NotFoundException("订单不存在");
         }
-        if (!"WAIT_PAY".equals(o.getStatus())) {
+        if (!STATUS_WAIT_PAY.equals(o.getStatus())) {
             throw new BusinessException(ErrorCode.PARAM_INVALID, "订单当前状态不可支付");
         }
-        if (o.getExpireTime() != null && o.getExpireTime().isBefore(LocalDateTime.now())) {
-            // 过期则视为已超时（由定时任务或支付时兜底触发取消）
+
+        LocalDateTime now = LocalDateTime.now();
+        if (o.getExpireTime() != null && o.getExpireTime().isBefore(now)) {
             throw new BusinessException(ErrorCode.PARAM_INVALID, "订单已超时取消，无法支付");
         }
 
-        o.setStatus("PAID");
-        o.setPayTime(LocalDateTime.now());
-        o.setUpdateTime(LocalDateTime.now());
+        o.setStatus(STATUS_PAID);
+        o.setPayTime(now);
+        o.setUpdateTime(now);
         orderMapper.updateById(o);
     }
 
@@ -237,7 +289,6 @@ public class OrderServiceImpl implements com.tq.module.order.service.OrderServic
         }).toList();
 
         return new PageResult<>(page.getTotal(), list, pageNum, pageSize);
-
     }
 
     @Override
@@ -258,14 +309,15 @@ public class OrderServiceImpl implements com.tq.module.order.service.OrderServic
         }
 
         String newStatus = req.getStatus();
+
         // 按接口说明：PAID -> SHIPPED -> COMPLETED，不允许把已取消改回 WAIT_PAY
-        if ("CANCELED".equals(o.getStatus()) && "WAIT_PAY".equals(newStatus)) {
+        if (STATUS_CANCELED.equals(o.getStatus()) && STATUS_WAIT_PAY.equals(newStatus)) {
             throw new BusinessException(ErrorCode.PARAM_INVALID, "已取消订单不可改回待支付");
         }
-        if ("PAID".equals(o.getStatus()) && !"SHIPPED".equals(newStatus)) {
+        if (STATUS_PAID.equals(o.getStatus()) && !STATUS_SHIPPED.equals(newStatus)) {
             throw new BusinessException(ErrorCode.PARAM_INVALID, "当前状态仅允许变更为SHIPPED");
         }
-        if ("SHIPPED".equals(o.getStatus()) && !"COMPLETED".equals(newStatus)) {
+        if (STATUS_SHIPPED.equals(o.getStatus()) && !STATUS_COMPLETED.equals(newStatus)) {
             throw new BusinessException(ErrorCode.PARAM_INVALID, "当前状态仅允许变更为COMPLETED");
         }
 
@@ -283,7 +335,7 @@ public class OrderServiceImpl implements com.tq.module.order.service.OrderServic
         LocalDateTime now = LocalDateTime.now();
 
         List<Order> expired = orderMapper.selectList(new LambdaQueryWrapper<Order>()
-                .eq(Order::getStatus, "WAIT_PAY")
+                .eq(Order::getStatus, STATUS_WAIT_PAY)
                 .le(Order::getExpireTime, now)
                 .orderByAsc(Order::getExpireTime)
                 .last("LIMIT 200"));
@@ -291,11 +343,11 @@ public class OrderServiceImpl implements com.tq.module.order.service.OrderServic
         for (Order o : expired) {
             // 二次校验：仅对 WAIT_PAY 做取消（避免并发支付）
             Order latest = orderMapper.selectById(o.getId());
-            if (latest == null || !"WAIT_PAY".equals(latest.getStatus())) {
+            if (latest == null || !STATUS_WAIT_PAY.equals(latest.getStatus())) {
                 continue;
             }
 
-            latest.setStatus("CANCELED");
+            latest.setStatus(STATUS_CANCELED);
             latest.setCancelReason("SYSTEM_TIMEOUT");
             latest.setCancelTime(now);
             latest.setUpdateTime(now);
@@ -322,6 +374,7 @@ public class OrderServiceImpl implements com.tq.module.order.service.OrderServic
         vo.setOrderNo(o.getOrderNo());
         vo.setStatus(o.getStatus());
         vo.setTotalAmount(o.getTotalAmount());
+        vo.setRemark(o.getRemark());
         vo.setCreateTime(o.getCreateTime());
         vo.setPayTime(o.getPayTime());
         vo.setCancelTime(o.getCancelTime());
@@ -333,7 +386,7 @@ public class OrderServiceImpl implements com.tq.module.order.service.OrderServic
             OrderDetailVO.ItemVO iv = new OrderDetailVO.ItemVO();
             iv.setProductId(String.valueOf(oi.getProductId()));
             iv.setProductTitle(oi.getProductTitle());
-            iv.setProductImage(UrlUtil.toFullUrl(baseUrl, oi.getProductImage())); // 补全 fullUrl，
+            iv.setProductImage(UrlUtil.toFullUrl(baseUrl, oi.getProductImage()));
             iv.setPrice(oi.getPrice());
             iv.setQuantity(oi.getQuantity());
             iv.setSubtotalAmount(oi.getSubtotalAmount());
@@ -370,12 +423,12 @@ public class OrderServiceImpl implements com.tq.module.order.service.OrderServic
         }
     }
 
-    private OrderItem buildOrderItem(Long orderId, Product p, int qty) {
+    // 这里去掉 orderId 入参，避免 “orderId 永远为 null” 的静态检查告警；orderId 在插入明细前统一补齐
+    private OrderItem buildOrderItem(Product p, int qty) {
         OrderItem oi = new OrderItem();
-        oi.setOrderId(orderId);
         oi.setProductId(p.getId());
         oi.setProductTitle(p.getTitle());
-        oi.setProductImage(p.getMainImage()); // 存库可保留相对路径，对外再补 fullUrl
+        oi.setProductImage(p.getMainImage()); // 存库保留相对路径，对外再补 fullUrl
         oi.setPrice(p.getPrice());
         oi.setQuantity(qty);
         oi.setSubtotalAmount(p.getPrice().multiply(BigDecimal.valueOf(qty)));

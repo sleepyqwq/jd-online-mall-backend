@@ -29,6 +29,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Set;
+import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
 /**
@@ -51,11 +52,7 @@ public class ProductServiceImpl implements ProductService {
 
     @Override
     public PageResult<ProductListItemVO> pageProducts(ProductQueryRequest request) {
-        Integer pageNum = request.getPageNum();
-        Integer pageSize = request.getPageSize();
-        if (pageNum == null || pageSize == null || pageNum <= 0 || pageSize <= 0) {
-            throw new BusinessException(ErrorCode.PARAM_INVALID, "分页参数不合法");
-        }
+        PageParam pp = requirePageParam(request);
 
         LambdaQueryWrapper<Product> wrapper = new LambdaQueryWrapper<>();
         // 仅查询未删除且已上架商品
@@ -87,7 +84,7 @@ public class ProductServiceImpl implements ProductService {
             wrapper.orderByDesc(Product::getCreateTime);
         }
 
-        Page<Product> page = new Page<>(pageNum, pageSize);
+        Page<Product> page = new Page<>(pp.pageNum(), pp.pageSize());
         Page<Product> resultPage = productMapper.selectPage(page, wrapper);
 
         List<ProductListItemVO> list = resultPage.getRecords().stream()
@@ -118,11 +115,7 @@ public class ProductServiceImpl implements ProductService {
 
     @Override
     public PageResult<AdminProductListItemVO> pageAdminProducts(ProductQueryRequest request) {
-        Integer pageNum = request.getPageNum();
-        Integer pageSize = request.getPageSize();
-        if (pageNum == null || pageSize == null || pageNum <= 0 || pageSize <= 0) {
-            throw new BusinessException(ErrorCode.PARAM_INVALID, "分页参数不合法");
-        }
+        PageParam pp = requirePageParam(request);
 
         LambdaQueryWrapper<Product> wrapper = new LambdaQueryWrapper<>();
 
@@ -142,7 +135,7 @@ public class ProductServiceImpl implements ProductService {
 
         wrapper.orderByDesc(Product::getCreateTime);
 
-        Page<Product> page = new Page<>(pageNum, pageSize);
+        Page<Product> page = new Page<>(pp.pageNum(), pp.pageSize());
         Page<Product> resultPage = productMapper.selectPage(page, wrapper);
 
         List<AdminProductListItemVO> list = resultPage.getRecords().stream()
@@ -353,29 +346,36 @@ public class ProductServiceImpl implements ProductService {
 
     private ProductListItemVO toProductListItemVO(Product product) {
         ProductListItemVO vo = new ProductListItemVO();
-        vo.setId(String.valueOf(product.getId()));
-        vo.setTitle(product.getTitle());
-        vo.setSubTitle(product.getSubTitle());
-        vo.setMainImage(product.getMainImage());
-        vo.setPrice(product.getPrice());
-        vo.setStock(product.getStock());
-        vo.setCategoryId(String.valueOf(product.getCategoryId()));
+        fillListCommonFields(
+                product,
+                vo::setId,
+                vo::setTitle,
+                vo::setSubTitle,
+                vo::setMainImage,
+                vo::setPrice,
+                vo::setStock,
+                vo::setCategoryId
+        );
         return vo;
     }
 
     private AdminProductListItemVO toAdminProductListItemVO(Product product) {
         AdminProductListItemVO vo = new AdminProductListItemVO();
-        vo.setId(String.valueOf(product.getId()));
-        vo.setTitle(product.getTitle());
-        vo.setSubTitle(product.getSubTitle());
-        vo.setMainImage(product.getMainImage());
-        vo.setPrice(product.getPrice());
-        vo.setStock(product.getStock());
-        vo.setCategoryId(String.valueOf(product.getCategoryId()));
+        fillListCommonFields(
+                product,
+                vo::setId,
+                vo::setTitle,
+                vo::setSubTitle,
+                vo::setMainImage,
+                vo::setPrice,
+                vo::setStock,
+                vo::setCategoryId
+        );
+
         vo.setStatus(product.getStatus());
         vo.setCreateTime(product.getCreateTime());
-        vo.setImageList(product.getImageList()); // 赋值
-        vo.setDescription(product.getDescription());//赋值详情描述
+        vo.setImageList(product.getImageList());
+        vo.setDescription(product.getDescription());
         return vo;
     }
 
@@ -397,5 +397,36 @@ public class ProductServiceImpl implements ProductService {
         vo.setImages(images);
         vo.setCreateTime(product.getCreateTime());
         return vo;
+    }
+
+    private record PageParam(int pageNum, int pageSize) {
+    }
+
+    private PageParam requirePageParam(ProductQueryRequest request) {
+        Integer pageNum = request.getPageNum();
+        Integer pageSize = request.getPageSize();
+        if (pageNum == null || pageSize == null || pageNum <= 0 || pageSize <= 0) {
+            throw new BusinessException(ErrorCode.PARAM_INVALID, "分页参数不合法");
+        }
+        return new PageParam(pageNum, pageSize);
+    }
+
+    private void fillListCommonFields(
+            Product product,
+            Consumer<String> setId,
+            Consumer<String> setTitle,
+            Consumer<String> setSubTitle,
+            Consumer<String> setMainImage,
+            Consumer<BigDecimal> setPrice,
+            Consumer<Integer> setStock,
+            Consumer<String> setCategoryId
+    ) {
+        setId.accept(String.valueOf(product.getId()));
+        setTitle.accept(product.getTitle());
+        setSubTitle.accept(product.getSubTitle());
+        setMainImage.accept(product.getMainImage());
+        setPrice.accept(product.getPrice());
+        setStock.accept(product.getStock());
+        setCategoryId.accept(String.valueOf(product.getCategoryId()));
     }
 }

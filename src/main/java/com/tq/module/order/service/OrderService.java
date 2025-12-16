@@ -11,7 +11,8 @@ public interface OrderService {
 
     OrderDetailVO detail(Long userId, Long orderId, String baseUrl);
 
-    void cancel(Long userId, Long orderId);
+    // 更新接口签名
+    void cancel(Long userId, Long orderId, String reason);
 
     void pay(Long userId, Long orderId);
 

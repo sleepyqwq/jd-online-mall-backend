@@ -4,6 +4,7 @@ import lombok.Data;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.List;
 
 @Data
 public class OrderListItemVO {
@@ -13,4 +14,6 @@ public class OrderListItemVO {
     private BigDecimal totalAmount;
     private LocalDateTime createTime;
     private LocalDateTime payTime;
+
+    private List<OrderDetailVO.ItemVO> items;
 }

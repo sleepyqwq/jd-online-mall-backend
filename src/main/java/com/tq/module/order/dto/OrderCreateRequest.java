@@ -1,6 +1,5 @@
 package com.tq.module.order.dto;
 
-import jakarta.validation.constraints.AssertTrue;
 import jakarta.validation.constraints.NotBlank;
 import lombok.Data;
 
@@ -22,14 +21,4 @@ public class OrderCreateRequest {
 
     private String remark;
 
-    @AssertTrue(message = "sourceType=CART 时必须传 cartItemIds；sourceType=BUY_NOW 时必须传 productId 和 quantity")
-    public boolean isValidBySourceType() {
-        if ("CART".equals(sourceType)) {
-            return cartItemIds != null && !cartItemIds.isEmpty();
-        }
-        if ("BUY_NOW".equals(sourceType)) {
-            return productId != null && !productId.isBlank() && quantity != null && quantity > 0;
-        }
-        return false;
-    }
 }

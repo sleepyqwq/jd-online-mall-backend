@@ -26,7 +26,7 @@ UPDATE t_product
 SET stock = stock + #{qty}, update_time = NOW()
 WHERE id = #{productId}
 """)
-    int rollbackStock(@Param("productId") Long productId, @Param("qty") Integer qty);
+    void rollbackStock(@Param("productId") Long productId, @Param("qty") Integer qty);
 
 
 }

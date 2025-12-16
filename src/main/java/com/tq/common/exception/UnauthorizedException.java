@@ -3,9 +3,7 @@ package com.tq.common.exception;
 import com.tq.common.api.ErrorCode;
 
 public class UnauthorizedException extends BusinessException {
-    public UnauthorizedException() {
-        super(ErrorCode.UNAUTHORIZED);
-    }
+
     public UnauthorizedException(String message) {
         super(ErrorCode.UNAUTHORIZED, message);
     }

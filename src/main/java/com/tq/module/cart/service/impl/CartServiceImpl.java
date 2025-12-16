@@ -129,7 +129,7 @@ public class CartServiceImpl implements CartService {
         }
 
         List<Long> productIds = items.stream().map(CartItem::getProductId).distinct().toList();
-        List<Product> products = productMapper.selectBatchIds(productIds);
+        List<Product> products = productMapper.selectByIds(productIds);
         Map<Long, Product> pMap = products.stream().collect(Collectors.toMap(Product::getId, x -> x, (a, b) -> a));
 
         List<CartItemVO> voItems = new ArrayList<>();

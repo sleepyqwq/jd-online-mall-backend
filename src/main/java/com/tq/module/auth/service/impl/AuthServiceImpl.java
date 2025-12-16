@@ -126,10 +126,10 @@ public class AuthServiceImpl implements AuthService {
     public LoginResponse.UserInfo currentUser() {
         UserContext.UserPrincipal principal = UserContext.get();
         System.out.println("currentUser principal = " + principal);
-        if (principal == null || principal.getRole() != RoleEnum.USER) {
+        if (principal == null || principal.role() != RoleEnum.USER) {
             throw new UnauthorizedException("未登录或登录已过期");
         }
-        User user = userMapper.selectById(principal.getUserId());
+        User user = userMapper.selectById(principal.userId());
         if (user == null) {
             throw new UnauthorizedException("未登录或登录已过期");
         }
@@ -139,10 +139,10 @@ public class AuthServiceImpl implements AuthService {
     @Override
     public LoginResponse.UserInfo currentAdmin() {
         UserContext.UserPrincipal principal = UserContext.get();
-        if (principal == null || principal.getRole() != RoleEnum.ADMIN) {
+        if (principal == null || principal.role() != RoleEnum.ADMIN) {
             throw new UnauthorizedException("未登录或登录已过期");
         }
-        User user = userMapper.selectById(principal.getUserId());
+        User user = userMapper.selectById(principal.userId());
         if (user == null) {
             throw new UnauthorizedException("未登录或登录已过期");
         }
