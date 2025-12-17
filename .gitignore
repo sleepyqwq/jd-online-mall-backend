@@ -18,6 +18,22 @@ target/
 *.iws
 *.iml
 *.ipr
+out/
+
+# Maven
+target/
+*.log
+
+# OS / temp
+.DS_Store
+Thumbs.db
+
+# Env / secrets（按需）
+.env
+*.key
+*.pem
+application-local.yml
+application-dev.yml
 
 ### NetBeans ###
 /nbproject/private/

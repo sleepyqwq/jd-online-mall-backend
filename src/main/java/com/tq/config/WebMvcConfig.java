@@ -39,6 +39,7 @@ public class WebMvcConfig implements WebMvcConfigurer {
                         "/api/upload", //文件上传应该被校验，但暂时先这么着
                         "/api/categories/**",
                         "/api/products/**",
+                        "/api/banners",
                         // 关键：排除所有 admin 接口
                         "/api/admin/**"
                 )
