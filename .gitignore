@@ -1,10 +1,21 @@
-HELP.md
-target/
-.mvn/wrapper/maven-wrapper.jar
-!**/src/main/**/target/
-!**/src/test/**/target/
+# ======================
+# Maven / Build outputs
+# ======================
+/target/
+*.log
 
-### STS ###
+# ======================
+# IntelliJ IDEA
+# ======================
+/.idea/
+*.iws
+*.iml
+*.ipr
+/out/
+
+# ======================
+# STS / Eclipse
+# ======================
 .apt_generated
 .classpath
 .factorypath
@@ -13,37 +24,46 @@ target/
 .springBeans
 .sts4-cache
 
-### IntelliJ IDEA ###
-.idea
-*.iws
-*.iml
-*.ipr
-out/
-
-# Maven
-target/
-*.log
-
-# OS / temp
-.DS_Store
-Thumbs.db
-
-# Env / secrets（按需）
-.env
-*.key
-*.pem
-application-local.yml
-application-dev.yml
-
-### NetBeans ###
+# ======================
+# NetBeans
+# ======================
 /nbproject/private/
 /nbbuild/
 /dist/
 /nbdist/
 /.nb-gradle/
 build/
-!**/src/main/**/build/
-!**/src/test/**/build/
 
-### VS Code ###
-.vscode/
+# ======================
+# VS Code
+# ======================
+/.vscode/
+
+# ======================
+# OS / Temp
+# ======================
+.DS_Store
+Thumbs.db
+
+# ======================
+# Env / Secrets
+# 说明：仅忽略典型本地敏感配置；建议提交 application-example.yml
+# ======================
+.env
+*.key
+*.pem
+/src/main/resources/application-local.yml
+/src/main/resources/application-dev.yml
+
+# ======================
+# Runtime (optional)
+# 如你有运行时日志目录，可按需保留
+# ======================
+/logs/
+/tmp/
+
+# ======================
+# Suspicious root-level folders
+# 说明：仅忽略项目根目录下的 /com/，不影响 src/main/java/com/...
+# ======================
+/com/
