@@ -12,9 +12,15 @@ import com.tq.module.category.entity.Category;
 import com.tq.module.category.mapper.CategoryMapper;
 import com.tq.module.category.service.CategoryService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.util.StringUtils;
+import tools.jackson.databind.ObjectMapper;
+import tools.jackson.core.type.TypeReference;
 
+
+import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.*;
 
@@ -26,9 +32,27 @@ import java.util.*;
 public class CategoryServiceImpl implements CategoryService {
 
     private final CategoryMapper categoryMapper;
+    private final StringRedisTemplate stringRedisTemplate;
+    private final ObjectMapper objectMapper;
 
     @Override
     public List<CategoryTreeNode> listCategoryTree() {
+        // 缓存键
+        String cacheKey = "cache:category_tree";
+        String cacheValue = stringRedisTemplate.opsForValue().get(cacheKey);
+        if (StringUtils.hasText(cacheValue)) {
+            try {
+                List<CategoryTreeNode> cached = objectMapper.readValue(
+                        cacheValue,
+                        new TypeReference<List<CategoryTreeNode>>() {}
+                );
+                if (cached != null) {
+                    return cached;
+                }
+            } catch (Exception ignored) {
+            }
+        }
+
         // 统一按 sortOrder、id 升序，保证前后台展示顺序一致
         List<Category> categories = categoryMapper.selectList(
                 new LambdaQueryWrapper<Category>()
@@ -61,6 +85,16 @@ public class CategoryServiceImpl implements CategoryService {
                     roots.add(node);
                 }
             }
+        }
+
+        // 写入缓存，TTL 1 小时
+        try {
+            stringRedisTemplate.opsForValue().set(
+                    cacheKey,
+                    objectMapper.writeValueAsString(roots),
+                    Duration.ofHours(1)
+            );
+        } catch (Exception ignored) {
         }
 
         return roots;
@@ -97,6 +131,9 @@ public class CategoryServiceImpl implements CategoryService {
         category.setUpdateTime(now);
 
         categoryMapper.insert(category);
+
+        // 删除缓存，保证查询实时性
+        stringRedisTemplate.delete("cache:category_tree");
     }
 
     @Override
@@ -131,6 +168,9 @@ public class CategoryServiceImpl implements CategoryService {
 
         category.setUpdateTime(LocalDateTime.now());
         categoryMapper.updateById(category);
+
+        // 删除缓存
+        stringRedisTemplate.delete("cache:category_tree");
     }
 
     @Override
@@ -156,6 +196,9 @@ public class CategoryServiceImpl implements CategoryService {
 
         // 第一个参数传 null，表示不使用实体自动映射，全靠 wrapper 控制 SET 子句
         categoryMapper.update(null, updateWrapper);
+
+        // 删除缓存
+        stringRedisTemplate.delete("cache:category_tree");
     }
 
     /**

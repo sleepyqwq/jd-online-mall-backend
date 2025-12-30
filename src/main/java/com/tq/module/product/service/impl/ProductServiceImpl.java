@@ -18,28 +18,19 @@ import com.tq.module.product.entity.Product;
 import com.tq.module.product.mapper.ProductMapper;
 import com.tq.module.product.service.ProductService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
+import tools.jackson.databind.ObjectMapper;
 
 import java.math.BigDecimal;
+import java.time.Duration;
 import java.time.LocalDateTime;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.List;
-import java.util.Set;
+import java.util.*;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
-/**
- * 商品领域服务实现。
- * 统一实现：
- * - 前台分页查询与详情；
- * - 后台分页查询、增删改、上下架；
- * - 分类存在性校验与一级分类聚合查询；
- * - 基本的价格、库存与状态合法性校验。
- */
 @Service
 @RequiredArgsConstructor
 public class ProductServiceImpl implements ProductService {
@@ -49,6 +40,8 @@ public class ProductServiceImpl implements ProductService {
 
     private final ProductMapper productMapper;
     private final CategoryMapper categoryMapper;
+    private final StringRedisTemplate stringRedisTemplate;
+    private final ObjectMapper objectMapper;
 
     @Override
     public PageResult<ProductListItemVO> pageProducts(ProductQueryRequest request) {
@@ -101,6 +94,19 @@ public class ProductServiceImpl implements ProductService {
 
     @Override
     public ProductDetailVO getProductDetail(Long id) {
+        // 尝试从缓存中读取
+        String cacheKey = "cache:product_detail:" + id;
+        String cacheValue = stringRedisTemplate.opsForValue().get(cacheKey);
+        if (StringUtils.hasText(cacheValue)) {
+            try {
+                ProductDetailVO cached = objectMapper.readValue(cacheValue, ProductDetailVO.class);
+                if (cached != null) {
+                    return cached;
+                }
+            } catch (Exception ignored) {
+            }
+        }
+
         Product product = productMapper.selectById(id);
         if (product == null || isDeleted(product)) {
             throw new NotFoundException("商品不存在");
@@ -110,7 +116,19 @@ public class ProductServiceImpl implements ProductService {
             throw new NotFoundException("商品不存在");
         }
 
-        return toProductDetailVO(product);
+        ProductDetailVO vo = toProductDetailVO(product);
+
+        // 写入缓存，TTL 30 分钟
+        try {
+            stringRedisTemplate.opsForValue().set(
+                    cacheKey,
+                    objectMapper.writeValueAsString(vo),
+                    Duration.ofMinutes(30)
+            );
+        } catch (Exception ignored) {
+        }
+
+        return vo;
     }
 
     @Override
@@ -226,6 +244,9 @@ public class ProductServiceImpl implements ProductService {
 
         product.setUpdateTime(LocalDateTime.now());
         productMapper.updateById(product);
+
+        // 删除缓存
+        stringRedisTemplate.delete("cache:product_detail:" + id);
     }
 
     @Override
@@ -238,6 +259,9 @@ public class ProductServiceImpl implements ProductService {
         product.setStatus(normalizeStatus(status));
         product.setUpdateTime(LocalDateTime.now());
         productMapper.updateById(product);
+
+        // 删除缓存
+        stringRedisTemplate.delete("cache:product_detail:" + id);
     }
 
     @Override
@@ -250,6 +274,9 @@ public class ProductServiceImpl implements ProductService {
 
         // TODO：商品与订单存在关联时，可在订单模块实现“有未完成订单的商品禁止删除”的额外校验。
         productMapper.deleteById(id);
+
+        // 删除缓存
+        stringRedisTemplate.delete("cache:product_detail:" + id);
     }
 
     /**

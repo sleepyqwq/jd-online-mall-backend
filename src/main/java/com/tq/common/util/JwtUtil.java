@@ -39,7 +39,23 @@ public class JwtUtil {
         this.key = Keys.hmacShaKeyFor(secret.getBytes(StandardCharsets.UTF_8));
     }
 
+    /**
+     * 生成 JWT，默认版本号为 1
+     */
     public String generateToken(Long userId, RoleEnum role) {
+        // 默认初始版本号为 1
+        return generateToken(userId, role, 1);
+    }
+
+    /**
+     * 生成包含版本号的 JWT。
+     *
+     * @param userId 用户 ID
+     * @param role   用户角色
+     * @param version 登录态版本号
+     * @return JWT 字符串
+     */
+    public String generateToken(Long userId, RoleEnum role, Integer version) {
         long now = System.currentTimeMillis();
         long expMs = jwtProperties.getExpireSeconds() * 1000L;
 
@@ -48,16 +64,32 @@ public class JwtUtil {
                 .subject(String.valueOf(userId))
                 // B. 自定义字段 (Claim)：放入角色信息（USER 或 ADMIN）
                 .claim("role", role.name())
-                // C. 签发时间 (Issued At)
+                // C. 自定义字段 (version)：放入登录态版本号，用于控制单点登录或黑名单
+                .claim("version", version)
+                // D. 签发时间 (Issued At)
                 .issuedAt(new Date(now))
-                // D. 过期时间 (Expiration)：当前时间 + 7200秒
+                // E. 过期时间 (Expiration)：当前时间 + expireSeconds
                 .expiration(new Date(now + expMs))
-                // E. 盖章签名 (Sign)：这是最关键的一步！
-                // 使用你的私钥和算法对内容进行加密签名
-                // 别人没有密钥，就无法伪造这个签名
+                // F. 盖章签名 (Sign)：使用密钥对内容进行加密签名
                 .signWith(key)
-                // F. 压缩成字符串：生成最终的 eyJhbG... 字符串
+                // G. 压缩成字符串：生成最终的 eyJhbG... 字符串
                 .compact();
+    }
+
+    /**
+     * 解析 Token 并返回 Claims 对象。
+     * 若签名不合法或过期，统一抛出未登录异常。
+     */
+    public Claims parseClaims(String token) {
+        try {
+            return Jwts.parser()
+                    .verifyWith(key)// 拿出验钞机（密钥）来验防伪标
+                    .build()
+                    .parseSignedClaims(token)// 如果签名不对，或者过期，这里会直接抛出异常
+                    .getPayload();// 拿到里面的数据（ID, Role, Version）
+        } catch (Exception e) {
+            throw new UnauthorizedException("未登录或登录已过期");
+        }
     }
 
     /**
